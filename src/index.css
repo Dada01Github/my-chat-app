@@ -1,0 +1,115 @@
+.app {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+}
+
+.chat-container {
+  max-width: 600px;
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  height: 400px;
+  overflow-y: auto;
+}
+
+.message {
+  max-width: 70%;
+  margin-bottom: 15px;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.user {
+  align-self: flex-end;
+  background-color: #dcf8c6;
+}
+
+.bot {
+  align-self: flex-start;
+  background-color: #f0f0f0;
+}
+
+.message-text {
+  word-wrap: break-word;
+}
+
+.timestamp {
+  font-size: 0.2em;
+  color: #888;
+  margin-top: 5px;
+  text-align: right;
+}
+
+.input-container {
+  display: flex;
+  margin-top: 20px;
+}
+
+input[type="text"] {
+  flex-grow: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+button {
+  padding: 10px 20px;
+  margin-left: 10px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* 您可以在这里添加其他全局样式 */
+
+.copy-tooltip {
+  margin-left: 5px;
+  color: green;
+  font-size: 0.8em;
+}
+
+.message button {
+  padding: 5px 10px;  /* 缩小按钮大小 */
+  margin-right: 5px;
+  background-color: #e6f7e6;  /* 浅绿色背景 */
+  color: #333;  /* 深色文字，确保可读性 */
+  border: 1px solid #b3d9b3;  /* 添加边框以增强视觉效果 */
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8em;  /* 缩小字体大小 */
+  transition: background-color 0.3s ease;  /* 添加过渡效果 */
+}
+
+.message button:hover {
+  background-color: #c5e8c5;  /* 鼠标悬停时稍微加深背景色 */
+}
+
+.message button {
+  margin-right: 5px;
+}
