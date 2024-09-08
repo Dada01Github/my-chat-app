@@ -10,7 +10,7 @@ const app = express();
 app.use(express.json());
 // 启用 CORS
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: 'https://dada01github.github.io/my-chat-app/',//'http://localhost:5173',
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -86,7 +86,7 @@ async function testOpenAIConnection() {
   }
 }
 
-//testOpenAIConnection();
+testOpenAIConnection();
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
