@@ -9,11 +9,15 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/node-fetch": "^2.6.11",
     "@vitejs/plugin-react": "^4.3.1",
     "vite": "^5.4.1"
   },
   "dependencies": {
     "axios": "^1.7.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "nodejieba": "^3.4.2",
     "react": "^18.2.0",
     "react-copy-to-clipboard": "^5.1.0",

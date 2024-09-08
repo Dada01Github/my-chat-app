@@ -39,46 +39,28 @@ const Chat = () => {
     setMessages(prevMessages => [...prevMessages, { text: textToSend, type: 'user', time: timestamp }]);
 
     try {
-      const response = await axios.post('http://localhost:3001/api/chat', {
-        message: textToSend,
-        conversationHistory: messages.map(msg => ({
-          role: msg.type === 'user' ? 'user' : 'assistant',
-          content: msg.text
-        }))
+      // 构建对话历史
+      const conversationHistory = messages.map(msg => ({
+        role: msg.type === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      }));
+
+      // 添加新的用户消息
+      conversationHistory.push({ role: 'user', content: textToSend });
+
+      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: 'gpt-4o-mini',//'gpt-3.5-turbo',
+        messages: conversationHistory,
       }, {
-        timeout: 10000 // 设置为 10 秒
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
       });
-      console.log('收到 OpenAI API 响应',response);
-      const botMessage = response.data.message;
-      
-      // 计数函数
-      const getCount = (text) => {
-        const chineseChars = text.match(/[\u4e00-\u9fa5]/g) || [];
-        const englishWords = text.match(/[a-zA-Z]+/g) || [];
-        
-        return {
-          chineseCount: chineseChars.length,
-          englishCount: englishWords.length
-        };
-      };
-      
-      const { chineseCount, englishCount } = getCount(botMessage);
-      let countInfo = '';
-      if (chineseCount > 0 || englishCount > 0) {
-        countInfo = `(`;
-        if (chineseCount > 0) {
-          countInfo += `CN: ${chineseCount}`;
-        }
-        if (chineseCount > 0 && englishCount > 0) {
-          countInfo += `, `;
-        }
-        if (englishCount > 0) {
-          countInfo += `EN: ${englishCount}`;
-        }
-        countInfo += `)`;
-      }
-      
-      const botMessageWithCount = `${botMessage}\n${countInfo}`;
+
+      const botMessage = response.data.choices[0].message.content;
+      const wordCount = botMessage.trim().split(/\s+/).length;
+      const botMessageWithCount = `${botMessage} (${wordCount})`;
       console.log('机器人回复:', botMessageWithCount);
       const botTimestamp = getFormattedTime();
 
@@ -267,23 +249,6 @@ const Chat = () => {
   const handleForward = useCallback((messageToForward) => {
     handleSendMessage(messageToForward);
   }, [handleSendMessage]);
-
-  const testBackendConnection = async () => {
-    try {
-      const response = await fetch('http://localhost:3001/api/test');
-      if (!response.ok) {
-        throw new Error('服务器响应错误');
-      }
-      const data = await response.json();
-      console.log('从后端收到的测试消息:', data.message);
-      // 可以在这里添加代码来在页面上显示测试消息
-    } catch (error) {
-      console.error('测试请求出错:', error);
-      // 在这里处理错误，例如在页面上显示错误消息
-    }
-  };
-
-  //testBackendConnection();
 
   return (
     <div className="chat-container">

@@ -283,7 +283,7 @@ const Chat = () => {
     }
   };
 
-  //testBackendConnection();
+  testBackendConnection();
 
   return (
     <div className="chat-container">
