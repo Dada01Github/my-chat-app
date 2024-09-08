@@ -39,7 +39,7 @@ const Chat = () => {
     setMessages(prevMessages => [...prevMessages, { text: textToSend, type: 'user', time: timestamp }]);
 
     try {
-      const response = await axios.post('149.28.182.164:3001/api/chat', {
+      const response = await axios.post('http://149.28.182.164:3001/api/chat', {
       //const response = await axios.post('http://localhost:3001/api/chat', {
         message: textToSend,
         conversationHistory: messages.map(msg => ({
@@ -271,7 +271,8 @@ const Chat = () => {
 
   const testBackendConnection = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/test');
+      const response = await fetch('http://149.28.182.164:3001/api/test');
+      //const response = await fetch('http://localhost:3001/api/test');
       if (!response.ok) {
         throw new Error('服务器响应错误');
       }
@@ -284,7 +285,7 @@ const Chat = () => {
     }
   };
 
-  //testBackendConnection();
+  testBackendConnection();
 
   return (
     <div className="chat-container">
