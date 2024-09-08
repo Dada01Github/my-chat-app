@@ -39,7 +39,7 @@ const Chat = () => {
     setMessages(prevMessages => [...prevMessages, { text: textToSend, type: 'user', time: timestamp }]);
 
     try {
-      const response = await axios.post('149.28.182.164/api/chat', {
+      const response = await axios.post('149.28.182.164:3001/api/chat', {
       //const response = await axios.post('http://localhost:3001/api/chat', {
         message: textToSend,
         conversationHistory: messages.map(msg => ({
