@@ -10,7 +10,14 @@ const app = express();
 app.use(express.json());
 // 启用 CORS
 app.use(cors({
-  origin: 'https://dada01github.github.io/my-chat-app/',//'http://localhost:5173',
+  origin: function (origin, callback) {
+    const allowedOrigins = ['https://dada01github.github.io', 'http://localhost:5173'];
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('不允许的来源'));
+    }
+  },
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));

@@ -23,5 +23,6 @@
     "react-copy-to-clipboard": "^5.1.0",
     "react-dom": "^18.2.0",
     "react-speech-recognition": "^3.10.0"
-  }
+  },
+   "proxy": "https://app.sea2rain.top"
 }
