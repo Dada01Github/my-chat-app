@@ -114,7 +114,7 @@ app.post('/api/chat', async (req, res) => {
 
     console.log('准备发送请求到 OpenAI API');
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o-mini',//'gpt-3.5-turbo',
       messages: [...conversationHistory, { role: 'user', content: message }],
       temperature: 0.7, // 添加温度参数，控制回复的创造性
       max_tokens: 150, // 限制回复的最大长度
