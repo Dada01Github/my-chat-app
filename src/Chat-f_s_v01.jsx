@@ -68,7 +68,7 @@ const Chat = () => {
       let audioUrl = null;
 
       if (isEnglish(botMessage)) {
-        console.log('检测到英文回复，准备生成TTS');
+        console.log('检测到文回复，准备生成TTS');
         try {
           const ttsResponse = await axios.post('https://app.sea2rain.top/api/tts', {
             text: botMessage
@@ -208,6 +208,7 @@ const Chat = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      console.log('录音已停止');
     }
   }, []);
 
@@ -266,6 +267,29 @@ const Chat = () => {
     };
   }, [messages]);
 
+  const deleteAudio = useCallback(() => {
+    if (audioURL) {
+      URL.revokeObjectURL(audioURL);
+      setAudioURL('');
+      console.log('录音已删除');
+    }
+  }, [audioURL]);
+
+  useEffect(() => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setAudioURL(audioUrl);
+        console.log('audioURL 已设置:', audioUrl);
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    console.log('audioURL 更新:', audioURL);
+  }, [audioURL]);
+
   return (
     <div className="chat-container">
       <div className="messages">
@@ -295,17 +319,18 @@ const Chat = () => {
           onKeyPress={handleKeyPress}
           placeholder="输入消息..."
         />
-        <button onClick={handleSend}>发送</button>
-        <button onClick={isRecording ? stopRecording : startRecording}>
+        <button className="send" onClick={handleSend}>发送</button>
+        <button className="record" onClick={isRecording ? stopRecording : startRecording}>
           {isRecording ? '停止录音' : '开始录音'}
         </button>
         {audioURL && (
-          <>
+          <div className="audio-controls">
             <audio controls src={audioURL}>
               您的浏览器不支持音频元素。
             </audio>
-            <button onClick={sendAudio}>发送录音</button>
-          </>
+            <button className="send-audio" onClick={sendAudio}>发送录音</button>
+            <button className="delete-audio" onClick={deleteAudio}>删除录音</button>
+          </div>
         )}
       </div>
     </div>
