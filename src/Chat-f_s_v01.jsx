@@ -14,12 +14,21 @@ const Chat = () => {
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [audioURL, setAudioURL] = useState('');
+  const [audioDuration, setAudioDuration] = useState(0);
   const [copiedMessage, setCopiedMessage] = useState('');
   const { transcript, resetTranscript } = useSpeechRecognition();
   
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const messagesEndRef = useRef(null);
+  const recordingStartTimeRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const [showFileSelector, setShowFileSelector] = useState(false);
+  const [showModelSelector, setShowModelSelector] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('claude-3.5-sonnet');
+
+  const [useLocalApi, setUseLocalApi] = useState(import.meta.env.VITE_USE_LOCAL_API === 'true');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -36,18 +45,29 @@ const Chat = () => {
     setMessages(prevMessages => [...prevMessages, { text: textToSend, type: 'user', time: timestamp }]);
 
     try {
-      const useLocalApi = import.meta.env.VITE_USE_LOCAL_API === 'true';
       console.log('useLocalApi:', useLocalApi);
       const apiUrl = useLocalApi ? 'http://localhost:3001/api/chat' : 'https://app.sea2rain.top/api/chat';
 
       console.log('正在发送请求到:', apiUrl);
 
+      // 获取保存的图片分析结果
+      const savedAnalyses = JSON.parse(localStorage.getItem('imageAnalyses') || '[]');
+      const analysisContext = savedAnalyses.map(analysis => ({
+        role: 'assistant',
+        content: `图片分析结果 (${analysis.fileName}): ${analysis.result}`
+      }));
+
+      console.log('包含的图片分析上下文:', analysisContext);
+
       const response = await axios.post(apiUrl, {
         message: textToSend,
-        conversationHistory: messages.map(msg => ({
-          role: msg.type === 'user' ? 'user' : 'assistant',
-          content: msg.text
-        }))
+        conversationHistory: [
+          ...analysisContext,
+          ...messages.map(msg => ({
+            role: msg.type === 'user' ? 'user' : 'assistant',
+            content: msg.text
+          }))
+        ]
       }, {
         timeout: 10000
       });
@@ -68,9 +88,10 @@ const Chat = () => {
       let audioUrl = null;
 
       if (isEnglish(botMessage)) {
-        console.log('检测到文回复，准备生成TTS');
+        console.log('检测到英文回复，准备生成TTS');
         try {
-          const ttsResponse = await axios.post('https://app.sea2rain.top/api/tts', {
+          const ttsApiUrl = useLocalApi ? 'http://localhost:3001/api/tts' : 'https://app.sea2rain.top/api/tts';
+          const ttsResponse = await axios.post(ttsApiUrl, {
             text: botMessage
           }, {
             responseType: 'arraybuffer'
@@ -113,7 +134,7 @@ const Chat = () => {
         time: errorTimestamp 
       }]);
     }
-  }, [messages]);
+  }, [messages, useLocalApi]);
 
   const handleSend = useCallback(() => {
     const textToSend = input.trim() || transcript.trim();
@@ -127,7 +148,13 @@ const Chat = () => {
   const sendAudio = useCallback(async () => {
     if (audioURL) {
       const timestamp = getFormattedTime();
-      setMessages(prevMessages => [...prevMessages, {text: '',type: 'user', time: timestamp, audio: audioURL }]);
+      setMessages(prevMessages => [...prevMessages, {
+        text: '',
+        type: 'user',
+        time: timestamp,
+        audio: audioURL,
+        audioDuration: audioDuration
+      }]);
 
       try {
         console.log('开始处理音频...');
@@ -139,8 +166,8 @@ const Chat = () => {
         console.log('FormData已创建，准备发送到服务器');
 
         console.log('发送STT请求到服务器...');
-        //const response = await axios.post('http://localhost:3001/api/stt', formData, {
-        const response = await axios.post('https://app.sea2rain.top/api/stt', formData, {
+        const sttApiUrl = useLocalApi ? 'http://localhost:3001/api/stt' : 'https://app.sea2rain.top/api/stt';
+        const response = await axios.post(sttApiUrl, formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
@@ -173,8 +200,9 @@ const Chat = () => {
       }
 
       setAudioURL('');
+      setAudioDuration(0);
     }
-  }, [audioURL, handleSendMessage]);
+  }, [audioURL, audioDuration, handleSendMessage, useLocalApi]);
 
   const handleCopy = useCallback((text) => {
     setCopiedMessage(text);
@@ -192,14 +220,9 @@ const Chat = () => {
           audioChunksRef.current.push(event.data);
         };
 
-        mediaRecorder.onstop = () => {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-          const audioUrl = URL.createObjectURL(audioBlob);
-          setAudioURL(audioUrl);
-        };
-
         mediaRecorder.start();
         setIsRecording(true);
+        recordingStartTimeRef.current = Date.now();
       })
       .catch(error => console.error('Error accessing microphone:', error));
   }, []);
@@ -208,7 +231,16 @@ const Chat = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      console.log('录音已停止');
+
+      const duration = (Date.now() - recordingStartTimeRef.current) / 1000;
+      setAudioDuration(duration.toFixed(1));
+
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setAudioURL(audioUrl);
+        console.log('录音已停止，时长:', duration.toFixed(1), '秒');
+      };
     }
   }, []);
 
@@ -290,6 +322,123 @@ const Chat = () => {
     console.log('audioURL 更新:', audioURL);
   }, [audioURL]);
 
+  const handleFileSelect = useCallback(() => {
+    fileInputRef.current.click();
+  }, []);
+
+  const handleFileChange = useCallback(async (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const fileMessage = `正在处理文件: ${file.name} (${formatFileSize(file.size)})`;
+      
+      setMessages(prevMessages => [
+        ...prevMessages,
+        { text: fileMessage, type: 'user', time: getFormattedTime() }
+      ]);
+
+      if (file.type.startsWith('image/')) {
+        try {
+          const formData = new FormData();
+          formData.append('image', file);
+
+          // 添加当前对话历史到请求中
+          formData.append('conversationHistory', JSON.stringify(messages.map(msg => ({
+            role: msg.type === 'user' ? 'user' : 'assistant',
+            content: msg.text
+          }))));
+
+          const apiUrl = useLocalApi ? 'http://localhost:3001/api/analyze-image' : 'https://app.sea2rain.top/api/analyze-image';
+          const response = await axios.post(apiUrl, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+
+          const analysisResult = response.data.result;
+          const newMessage = { 
+            text: `图片分析结果：\n${analysisResult}`, 
+            type: 'bot', 
+            time: getFormattedTime(),
+            isImageAnalysis: true  // 添加标记表示这是图片分析结果
+          };
+          setMessages(prevMessages => [...prevMessages, newMessage]);
+
+          // 将图片分析结果保存到本地存储
+          const savedAnalyses = JSON.parse(localStorage.getItem('imageAnalyses') || '[]');
+          savedAnalyses.push({
+            fileName: file.name,
+            result: analysisResult,
+            time: getFormattedTime()
+          });
+          localStorage.setItem('imageAnalyses', JSON.stringify(savedAnalyses));
+
+          console.log('图片分析结果已保存:', analysisResult);
+
+        } catch (error) {
+          console.error('图片分析错误:', error);
+          setMessages(prevMessages => [
+            ...prevMessages,
+            { text: '图片分析失败，请重试。', type: 'bot', time: getFormattedTime() }
+          ]);
+        }
+      } else {
+        // 处理其他类型的文件
+        setMessages(prevMessages => [
+          ...prevMessages,
+          { text: `已选择文件: ${file.name}`, type: 'user', time: getFormattedTime() }
+        ]);
+      }
+
+      // 清除文件输入，以便可以再次选择同一文件
+      event.target.value = '';
+    }
+  }, [messages, useLocalApi]);
+
+  // 在组件加载时，从本地存储中读取保存的图片分析结果
+  useEffect(() => {
+    const savedAnalyses = JSON.parse(localStorage.getItem('imageAnalyses') || '[]');
+    if (savedAnalyses.length > 0) {
+      console.log('加载保存的图片分析结果:', savedAnalyses);
+      const analysisMessages = savedAnalyses.map(analysis => ({
+        text: `之前的图片分析结果 (${analysis.fileName})：\n${analysis.result}`,
+        type: 'bot',
+        time: analysis.time,
+        isImageAnalysis: true
+      }));
+      setMessages(prevMessages => [...prevMessages, ...analysisMessages]);
+    }
+  }, []);
+
+  // 格式化文件大小的辅助函数
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' bytes';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+    else return (bytes / 1073741824).toFixed(1) + ' GB';
+  };
+
+  const handleModelSelect = useCallback(() => {
+    setShowModelSelector(true);
+  }, []);
+
+  const handleFileUpload = useCallback((file) => {
+    // 处理文件上传逻辑
+    console.log('上传文件:', file.name);
+    setShowFileSelector(false);
+  }, []);
+
+  const handleModelChange = useCallback((model) => {
+    setSelectedModel(model);
+    setShowModelSelector(false);
+  }, []);
+
+  const MicrophoneIcon = ({ isRecording }) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill={isRecording ? "red" : "currentColor"}>
+      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+      <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+    </svg>
+  );
+
   return (
     <div className="chat-container">
       <div className="messages">
@@ -297,9 +446,12 @@ const Chat = () => {
           <div key={index} className={`message ${msg.type}`}>
             <div className="message-text">{msg.text}</div>
             {msg.audio && (
-              <audio controls src={msg.audio}>
-                您的浏览器不支持音频元素。
-              </audio>
+              <div className="audio-message">
+                <audio controls src={msg.audio}>
+                  您的浏览器不支持音频元素。
+                </audio>
+                <span className="audio-filename">{msg.audioFileName}</span>
+              </div>
             )}
             <div className="timestamp">{msg.time}</div>
             <button onClick={() => handleForward(msg.text)}>转发</button>
@@ -311,28 +463,102 @@ const Chat = () => {
         ))}
         <div ref={messagesEndRef} />
       </div>
-      <div className="input-container">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder="输入消息..."
-        />
-        <button className="send" onClick={handleSend}>发送</button>
-        <button className="record" onClick={isRecording ? stopRecording : startRecording}>
-          {isRecording ? '停止录音' : '开始录音'}
-        </button>
+      <div className="input-area">
+        <div className="input-container">
+          <button className="file-select-btn" onClick={handleFileSelect}>+</button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="输入消息..."
+          />
+          <button className="send" onClick={handleSend}>发送</button>
+          <button 
+            className="record-btn" 
+            onClick={isRecording ? stopRecording : startRecording}
+            title={isRecording ? '停止录音' : '开始录音'}
+          >
+            <MicrophoneIcon isRecording={isRecording} />
+          </button>
+        </div>
         {audioURL && (
           <div className="audio-controls">
             <audio controls src={audioURL}>
               您的浏览器不支持音频元素。
             </audio>
-            <button className="send-audio" onClick={sendAudio}>发送录音</button>
-            <button className="delete-audio" onClick={deleteAudio}>删除录音</button>
+            <button onClick={sendAudio}>发送录音</button>
+            <button onClick={deleteAudio}>删除录音</button>
           </div>
         )}
+        <div className="model-select-container">
+          <button className="model-select-btn" onClick={handleModelSelect}>^</button>
+        </div>
       </div>
+      {showFileSelector && (
+        <FileSelector onFileSelect={handleFileUpload} onClose={() => setShowFileSelector(false)} />
+      )}
+      {showModelSelector && (
+        <ModelSelector 
+          onModelSelect={handleModelChange} 
+          onClose={() => setShowModelSelector(false)}
+          currentModel={selectedModel}
+        />
+      )}
+    </div>
+  );
+};
+
+// 文件选择器组件
+const FileSelector = ({ onFileSelect, onClose }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [files, setFiles] = useState([/* 模拟文件列表 */]);
+
+  // 模拟文件搜索功能
+  const filteredFiles = files.filter(file => 
+    file.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="file-selector">
+      <input 
+        type="text" 
+        placeholder="搜索文件..." 
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+      />
+      <ul>
+        {filteredFiles.map(file => (
+          <li key={file.name} onClick={() => onFileSelect(file)}>{file.name}</li>
+        ))}
+      </ul>
+      <button onClick={onClose}>关闭</button>
+    </div>
+  );
+};
+
+// 模型选择器组件
+const ModelSelector = ({ onModelSelect, onClose, currentModel }) => {
+  const models = ['claude-3.5-sonnet', 'gpt-4', 'gemini-pro'];
+
+  return (
+    <div className="model-selector">
+      {models.map(model => (
+        <button 
+          key={model} 
+          onClick={() => onModelSelect(model)}
+          className={currentModel === model ? 'selected' : ''}
+        >
+          {model}
+        </button>
+      ))}
+      <button onClick={onClose}>关闭</button>
     </div>
   );
 };

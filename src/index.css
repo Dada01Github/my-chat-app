@@ -48,32 +48,110 @@
 
 .input-container {
   display: flex;
+  align-items: center;
   padding: 10px;
   background-color: #f0f0f0;
-  align-items: center;
-  flex-wrap: wrap;
+}
+
+.file-select-btn, .model-select-btn {
+  padding: 5px 10px;
+  margin-right: 5px;
+  background-color: #e0e0e0;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-weight: bold;  /* 加粗符号 */
+  font-size: 18px;    /* 增加字体大小 */
+  line-height: 1;     /* 确保垂直居中 */
+  width: 30px;        /* 设置固定宽度 */
+  height: 30px;       /* 设置固定高度 */
+  display: flex;      /* 使用 flex 布局 */
+  justify-content: center;  /* 水平居中 */
+  align-items: center;      /* 垂直居中 */
+  transition: background-color 0.3s ease;  /* 添加过渡效果 */
+}
+
+.file-select-btn:hover, .model-select-btn:hover {
+  background-color: #4CAF50;  /* 鼠标悬停时变为绿色 */
+  color: white;  /* 鼠标悬停时文字变为白色，提高对比度 */
 }
 
 .input-container input {
   flex-grow: 1;
-  padding: 8px;
-  margin-right: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  margin-right: 5px;
+  padding: 5px;
 }
 
 .input-container button {
-  padding: 8px 12px;
   margin-right: 5px;
+  padding: 5px 10px;
+  background-color: #e0e0e0;
   border: none;
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.3s;
 }
 
-.input-container button:hover {
-  opacity: 0.8;
+.audio-controls {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+}
+
+.audio-controls audio {
+  margin-right: 10px;
+}
+
+.model-select-container {
+  display: flex;
+  justify-content: center;
+  padding: 5px;
+  border-top: 1px solid #ccc;
+}
+
+.model-select-btn {
+  padding: 5px 10px;
+  background-color: #e0e0e0;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.file-selector, .model-selector {
+  position: absolute;
+  bottom: 100px; /* 调整位置以适应新的布局 */
+  left: 0;
+  right: 0;
+  background-color: white;
+  border: 1px solid #ccc;
+  padding: 10px;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+}
+
+.file-selector input, .model-selector button {
+  margin-bottom: 10px;
+}
+
+.file-selector ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.file-selector li {
+  cursor: pointer;
+  padding: 5px;
+}
+
+.file-selector li:hover {
+  background-color: #f0f0f0;
+}
+
+.model-selector button {
+  margin-right: 5px;
+}
+
+.model-selector button.selected {
+  background-color: #007bff;
+  color: white;
 }
 
 /* 发送按钮 */
@@ -98,6 +176,7 @@
 .input-container button.delete-audio {
   background-color: #FF9800;
   color: white;
+  display: inline-block; /* 确保按钮显示 */
 }
 
 .input-container audio {
@@ -171,3 +250,62 @@ code {
 .message button {
   margin-right: 5px;
 }
+
+.audio-message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 5px;
+}
+
+.audio-message audio {
+  margin-bottom: 5px;
+}
+
+.audio-message span {
+  font-size: 0.9em;
+  color: #666;
+}
+
+.audio-duration {
+  font-size: 0.9em;
+  color: #666;
+}
+
+.audio-filename {
+  font-size: 0.9em;
+  color: #666;
+}
+
+/* 删除或注释掉以下部分 */
+/* .function-bar {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 5px;
+  background-color: #f0f0f0;
+  border-bottom: 1px solid #ccc;
+}
+
+.function-bar button {
+  background-color: #e0e0e0;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.9em;
+  margin-right: 5px;
+  padding: 5px 10px;
+}
+
+.function-bar button:hover {
+  background-color: #d0d0d0;
+} */
+
+/* ... 保留其他样式 ... */
+
+.file-select-btn {
+  /* ... 现有样式 ... */
+  cursor: pointer;
+}
+
+/* ... 其他样式 ... */

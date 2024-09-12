@@ -12,6 +12,7 @@ import axiosRetry from 'axios-retry';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import OpenAI from 'openai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +24,7 @@ app.use(express.json()); // 添加这行来解析 JSON 请求体
 const upload = multer({ storage: multer.memoryStorage() });
 
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY;
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 console.log(OPENAI_API_KEY);
 if (!OPENAI_API_KEY) {
   console.error('错误: OPENAI_API_KEY 未设置');
@@ -218,6 +220,51 @@ app.post('/api/tts', async (req, res) => {
     }
 
     res.status(statusCode).json({ error: errorMessage });
+  }
+});
+
+// 新增的图片分析路由
+app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: '没有上传文件。' });
+  }
+
+  console.log('接收到图片:', req.file.originalname, req.file.mimetype, req.file.size, 'bytes');
+
+  try {
+    const base64Image = req.file.buffer.toString('base64');
+
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "you are a helpful assistant, Help me Analyzing the image,What's the image meaning?pls make a general overview or summary of the output." },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${req.file.mimetype};base64,${base64Image}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 3000
+    }, {
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const analysisResult = response.data.choices[0].message.content;
+    console.log('图片分析结果:', analysisResult);
+
+    res.json({ result: analysisResult });
+  } catch (error) {
+    console.error('调用 OpenAI API 时出错:', error);
+    res.status(500).json({ error: '处理图片时发生错误。', details: error.message });
   }
 });
 
