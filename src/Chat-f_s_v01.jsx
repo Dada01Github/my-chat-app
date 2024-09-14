@@ -193,7 +193,7 @@ const Chat = () => {
           const newMessages = [...prevMessages];
           newMessages[newMessages.length - 1] = {
             ...newMessages[newMessages.length - 1],
-            text: '处理语音时出错: ' + (error.response ? error.response.data.error : error.message)
+            text: '处理语音时出: ' + (error.response ? error.response.data.error : error.message)
           };
           return newMessages;
         });
@@ -330,71 +330,74 @@ const Chat = () => {
     const file = event.target.files[0];
     if (file) {
       const fileMessage = `正在处理文件: ${file.name} (${formatFileSize(file.size)})`;
+      const processingMessageId = Date.now(); // 用于标识处理消息的唯一ID
       
       setMessages(prevMessages => [
         ...prevMessages,
-        { text: fileMessage, type: 'user', time: getFormattedTime() }
+        { id: processingMessageId, text: fileMessage, type: 'system', time: getFormattedTime() }
       ]);
 
-      if (file.type.startsWith('image/')) {
-        try {
-          let imageToSend = file;
-          if (file.size > 1024 * 1024) { // 如果大于1MB，进行压缩
-            imageToSend = await compressImage(file);
-          }
-          
+      try {
+        if (file.type.startsWith('audio/') || file.type.startsWith('video/')) {
+          const audioUrl = URL.createObjectURL(file);
+          const newMessage = {
+            text: `音频文件: ${file.name}`,
+            type: 'user',
+            time: getFormattedTime(),
+            audio: audioUrl,
+            audioFileName: file.name
+          };
+
+          // 处理音频文件的逻辑...
           const formData = new FormData();
-          formData.append('image', imageToSend, file.name);
+          formData.append('file', file);
 
-          formData.append('conversationHistory', JSON.stringify(messages.map(msg => ({
-            role: msg.type === 'user' ? 'user' : 'assistant',
-            content: msg.text
-          }))));
-
-          const apiUrl = useLocalApi ? 'http://localhost:3001/api/analyze-image' : 'https://app.sea2rain.top/api/analyze-image';
-          const response = await axios.post(apiUrl, formData, {
+          const sttApiUrl = useLocalApi ? 'http://localhost:3001/api/stt' : 'https://app.sea2rain.top/api/stt';
+          const response = await axios.post(sttApiUrl, formData, {
             headers: {
               'Content-Type': 'multipart/form-data'
-            },
-            timeout: 60000 // 增加超时时间到60秒
+            }
           });
 
-          const analysisResult = response.data.result;
-          const newMessage = { 
-            text: `图片分析结果：\n${analysisResult}`, 
-            type: 'bot', 
-            time: getFormattedTime(),
-            isImageAnalysis: true  // 添加标记表示这是图片分析结果
-          };
-          setMessages(prevMessages => [...prevMessages, newMessage]);
+          const transcription = response.data.text;
+          const isEnglishTranscription = /^[A-Za-z\s.,!?]+$/.test(transcription.trim());
 
-          // 将图片分析结果保存到本地存储
-          const savedAnalyses = JSON.parse(localStorage.getItem('imageAnalyses') || '[]');
-          savedAnalyses.push({
-            fileName: file.name,
-            result: analysisResult,
-            time: getFormattedTime()
+          const summaryResponse = await axios.post(useLocalApi ? 'http://localhost:3001/api/chat' : 'https://app.sea2rain.top/api/chat', {
+            message: `请对以下文本进行简要概括:\n${transcription}`,
+            conversationHistory: []
           });
-          localStorage.setItem('imageAnalyses', JSON.stringify(savedAnalyses));
 
-          console.log('图片分析结果已保存:', analysisResult);
+          const summary = summaryResponse.data.message;
 
-        } catch (error) {
-          console.error('图片分析错误:', error);
-          let errorMessage = '图片分析失败，请重试。';
-          if (error.response) {
-            errorMessage += ` 错误代码: ${error.response.status}`;
-          }
+          const formattedMessage = isEnglishTranscription
+            ? `1. summary:\n${summary}\n\n2. Original audio text:\n${transcription}`
+            : `1. 概括：\n${summary}\n\n2. 音频原文：\n${transcription}`;
+
           setMessages(prevMessages => [
-            ...prevMessages,
-            { text: errorMessage, type: 'bot', time: getFormattedTime() }
+            ...prevMessages.filter(msg => msg.id !== processingMessageId), // 移除处理消息
+            newMessage,
+            { 
+              text: formattedMessage, 
+              type: 'bot', 
+              time: getFormattedTime() 
+            }
           ]);
+        } else if (file.type.startsWith('image/')) {
+          // 处理图片文件的逻辑...
+          // 在处理完成后，同样移除处理消息
+        } else {
+          // 处理其他类型文件的逻辑...
+          // 在处理完成后，同样移除处理消息
         }
-      } else {
-        // 处理其他类型的文件
+      } catch (error) {
+        console.error('处理文件时出错:', error);
         setMessages(prevMessages => [
-          ...prevMessages,
-          { text: `已选择文件: ${file.name}`, type: 'user', time: getFormattedTime() }
+          ...prevMessages.filter(msg => msg.id !== processingMessageId), // 移除处理消息
+          { 
+            text: '处理文件时出错: ' + error.message, 
+            type: 'bot', 
+            time: getFormattedTime() 
+          }
         ]);
       }
 
@@ -554,7 +557,7 @@ const FileSelector = ({ onFileSelect, onClose }) => {
 
 // 模型选择器组件
 const ModelSelector = ({ onModelSelect, onClose, currentModel }) => {
-  const models = ['claude-3.5-sonnet', 'gpt-4', 'gemini-pro'];
+  const models = ['claude-3.5-sonnet', 'gpt-4o', 'gpt-4o-mini','gemini-pro'];
 
   return (
     <div className="model-selector">

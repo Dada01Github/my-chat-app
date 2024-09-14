@@ -17,11 +17,16 @@ import OpenAI from 'openai';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
-app.use(cors());
+const app = express();// 创建 Express 应用
+app.use(cors());// 允许跨域
 app.use(express.json()); // 添加这行来解析 JSON 请求体
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 限制文件大小为 50MB
+  }
+});
 
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY;
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -119,7 +124,7 @@ app.post('/api/chat', async (req, res) => {
       model: 'gpt-4o-mini',//'gpt-3.5-turbo',
       messages: [...conversationHistory, { role: 'user', content: message }],
       temperature: 0.7, // 添加温度参数，控制回复的创造性
-      max_tokens: 150, // 限制回复的最大长度
+      max_tokens: 500, // 限制回复的最大长度
     }, {
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
@@ -282,7 +287,7 @@ async function testOpenAIConnection() {
   }
 }
 
-testOpenAIConnection();
+//testOpenAIConnection();
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`服务器运行在端口 ${PORT}`));
