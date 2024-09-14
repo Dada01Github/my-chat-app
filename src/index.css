@@ -309,3 +309,24 @@ code {
 }
 
 /* ... 其他样式 ... */
+
+.send-btn {
+  background-color: #4CAF50;  /* 绿色 */
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s;
+}
+
+.send-btn:hover {
+  background-color: #45a049;  /* 深绿色,用于悬停效果 */
+}
+
+.send-btn:active {
+  background-color: #3e8e41;  /* 更深的绿色,用于点击效果 */
+}
+
+/* ... 其他CSS样式 ... */

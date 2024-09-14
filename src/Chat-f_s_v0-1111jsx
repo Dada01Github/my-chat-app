@@ -149,11 +149,9 @@ const Chat = () => {
     if (audioURL) {
       const timestamp = getFormattedTime();
       setMessages(prevMessages => [...prevMessages, {
-        text: '',
+        text: '正在处理语音...',
         type: 'user',
         time: timestamp,
-        audio: audioURL,
-        audioDuration: audioDuration
       }]);
 
       try {
@@ -162,45 +160,68 @@ const Chat = () => {
         console.log('音频Blob已创建:', audioBlob.type, audioBlob.size, 'bytes');
 
         const formData = new FormData();
-        formData.append('file', audioBlob, 'audio.wav');
+        formData.append('audio', audioBlob, 'audio.wav');
         console.log('FormData已创建，准备发送到服务器');
 
         console.log('发送STT请求到服务器...');
         const sttApiUrl = useLocalApi ? 'http://localhost:3001/api/stt' : 'https://app.sea2rain.top/api/stt';
+        console.log('STT API URL:', sttApiUrl);
+
         const response = await axios.post(sttApiUrl, formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
-          }
+          },
+          timeout: 30000 // 设置30秒超时
         });
 
         console.log('收到服务器STT响应:', response.data);
         const transcription = response.data.text;
 
         console.log('转录文本:', transcription);
+        
+        // 更新消息,替换为转录文本
+        setMessages(prevMessages => {
+          const newMessages = [...prevMessages];
+          newMessages[newMessages.length - 1] = {
+            ...newMessages[newMessages.length - 1],
+            text: transcription,
+          };
+          return newMessages;
+        });
+
+        // 处理转录后的文本
         handleSendMessage(transcription);
 
       } catch (error) {
         console.error('处理音频时出错:', error);
+        let errorMessage = '处理语音时出错: ';
         if (error.response) {
           console.error('错误响应数据:', error.response.data);
           console.error('错误响应状态:', error.response.status);
+          errorMessage += `服务器响应错误 (${error.response.status}): ${JSON.stringify(error.response.data)}`;
         } else if (error.request) {
           console.error('请求错误:', error.request);
+          errorMessage += '未收到服务器响应，可能是网络问题';
         } else {
           console.error('错误:', error.message);
+          errorMessage += error.message;
         }
         setMessages(prevMessages => {
           const newMessages = [...prevMessages];
           newMessages[newMessages.length - 1] = {
             ...newMessages[newMessages.length - 1],
-            text: '处理语音时出错: ' + (error.response ? error.response.data.error : error.message)
+            text: errorMessage,
           };
           return newMessages;
         });
+      } finally {
+        // 清理音频URL和持续时间
+        setAudioURL('');
+        setAudioDuration(0);
+        
+        // 释放Blob URL
+        URL.revokeObjectURL(audioURL);
       }
-
-      setAudioURL('');
-      setAudioDuration(0);
     }
   }, [audioURL, audioDuration, handleSendMessage, useLocalApi]);
 
@@ -338,14 +359,10 @@ const Chat = () => {
 
       if (file.type.startsWith('image/')) {
         try {
-          let imageToSend = file;
-          if (file.size > 1024 * 1024) { // 如果大于1MB，进行压缩
-            imageToSend = await compressImage(file);
-          }
-          
           const formData = new FormData();
-          formData.append('image', imageToSend, file.name);
+          formData.append('image', file);
 
+          // 添加当前对话历史到请求中
           formData.append('conversationHistory', JSON.stringify(messages.map(msg => ({
             role: msg.type === 'user' ? 'user' : 'assistant',
             content: msg.text
@@ -355,8 +372,7 @@ const Chat = () => {
           const response = await axios.post(apiUrl, formData, {
             headers: {
               'Content-Type': 'multipart/form-data'
-            },
-            timeout: 60000 // 增加超时时间到60秒
+            }
           });
 
           const analysisResult = response.data.result;
@@ -381,13 +397,9 @@ const Chat = () => {
 
         } catch (error) {
           console.error('图片分析错误:', error);
-          let errorMessage = '图片分析失败，请重试。';
-          if (error.response) {
-            errorMessage += ` 错误代码: ${error.response.status}`;
-          }
           setMessages(prevMessages => [
             ...prevMessages,
-            { text: errorMessage, type: 'bot', time: getFormattedTime() }
+            { text: '图片分析失败，请重试。', type: 'bot', time: getFormattedTime() }
           ]);
         }
       } else {
@@ -488,7 +500,7 @@ const Chat = () => {
             onKeyPress={handleKeyPress}
             placeholder="输入消息..."
           />
-          <button className="send" onClick={handleSend}>发送</button>
+          <button className="send-btn" onClick={handleSend}>发送</button>
           <button 
             className="record-btn" 
             onClick={isRecording ? stopRecording : startRecording}
@@ -570,48 +582,6 @@ const ModelSelector = ({ onModelSelect, onClose, currentModel }) => {
       <button onClick={onClose}>关闭</button>
     </div>
   );
-};
-
-const compressImage = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const elem = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        const maxSize = 1024; // 最大尺寸
-
-        if (width > height && width > maxSize) {
-          height *= maxSize / width;
-          width = maxSize;
-        } else if (height > maxSize) {
-          width *= maxSize / height;
-          height = maxSize;
-        }
-
-        elem.width = width;
-        elem.height = height;
-        const ctx = elem.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        ctx.canvas.toBlob(
-          (blob) => {
-            resolve(new File([blob], file.name, {
-              type: 'image/jpeg',
-              lastModified: Date.now(),
-            }));
-          },
-          'image/jpeg',
-          0.7  // 质量参数，可以根据需要调整
-        );
-      };
-      img.onerror = (error) => reject(error);
-    };
-    reader.onerror = (error) => reject(error);
-  });
 };
 
 export default Chat;
