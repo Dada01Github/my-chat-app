@@ -17,11 +17,15 @@ import OpenAI from 'openai';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
-app.use(cors());
-app.use(express.json()); // 添加这行来解析 JSON 请求体
+const app = express();// 创建 Express 应用
+app.use(cors());// 允许跨域
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ 
+  dest: 'uploads/',
+  limits: { fileSize: 500 * 1024 * 1024 } // 增加到 500MB
+});
 
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY;
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -40,63 +44,38 @@ axiosRetry(axios, {
   }
 });
 
-app.post('/api/stt', upload.single('file'), async (req, res) => {
+app.use((req, res, next) => {
+  console.log('收到请求:', req.method, req.url);
+  console.log('请求头:', req.headers);
+  next();
+});
+
+// 语音/视频转文字路由
+app.post('/api/stt', (req, res, next) => {
+  console.log('开始处理 /api/stt 请求');
+  next();
+}, upload.single('file'), (req, res) => {
+  console.log('收到 /api/stt 请求');
+  
   if (!req.file) {
-    return res.status(400).send('没有上传文件。');
+    console.log('没有接收到文件');
+    return res.status(400).json({ error: '没有上传文件。' });
   }
 
   console.log('接收到文件:', req.file.originalname, req.file.mimetype, req.file.size, 'bytes');
-
-  // 保存文件到本地
-  const uploadDir = path.join(__dirname, 'uploads');
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-  }
-  const filePath = path.join(uploadDir, `received_${Date.now()}_${req.file.originalname}`);
-  fs.writeFileSync(filePath, req.file.buffer);
-  console.log('文件已保存到:', filePath);
-
-  try {
-    const formData = new FormData();
-    const bufferStream = new Readable();
-    bufferStream.push(req.file.buffer);
-    bufferStream.push(null);
-
-    formData.append('file', bufferStream, {
-      filename: req.file.originalname,
-      contentType: req.file.mimetype,
-      knownLength: req.file.size
-    });
-    formData.append('model', 'whisper-1');
-
-    console.log('准备发送请求到 OpenAI STT API');
-    const response = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
-      headers: {
-        ...formData.getHeaders(),
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Connection': 'keep-alive'
-      },
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-      timeout: 300000, // 5 分钟
-      httpAgent: new http.Agent({ keepAlive: true }),
-      httpsAgent: new https.Agent({ keepAlive: true })
-    });
-
-    console.log('OpenAI STT API 响应:', response.data);
-    res.json({ text: response.data.text });
-  } catch (error) {
-    console.error('调用 OpenAI STT API 时出错:', error);
-    if (error.response) {
-      console.error('错误响应数据:', error.response.data);
-      console.error('错误响应状态:', error.response.status);
-    } else if (error.request) {
-      console.error('请求错误:', error.request);
-    } else {
-      console.error('错误:', error.message);
-    }
-    res.status(500).json({ error: '处理语音转文字请求时发生错误。', details: error.message });
-  }
+  console.log('文件保存路径:', req.file.path);
+  
+  // 这里应该添加实际的音频/视频处理逻辑
+  // 暂时返回一个模拟的转录结果
+  const transcription = `这是 ${req.file.originalname} 的模拟转录结果。文件大小：${req.file.size} 字节。`;
+  
+  res.json({
+    message: '文件上传成功',
+    filename: req.file.originalname,
+    mimetype: req.file.mimetype,
+    size: req.file.size,
+    transcription: transcription
+  });
 });
 
 app.post('/api/chat', async (req, res) => {
@@ -119,7 +98,7 @@ app.post('/api/chat', async (req, res) => {
       model: 'gpt-4o-mini',//'gpt-3.5-turbo',
       messages: [...conversationHistory, { role: 'user', content: message }],
       temperature: 0.7, // 添加温度参数，控制回复的创造性
-      max_tokens: 150, // 限制回复的最大长度
+      max_tokens: 500, // 限制回复的最大长度
     }, {
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
@@ -224,7 +203,7 @@ app.post('/api/tts', async (req, res) => {
 });
 
 // 新增的图片分析路由
-app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
+app.post('/api/analyze-image', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: '没有上传文件。' });
   }
@@ -283,6 +262,12 @@ async function testOpenAIConnection() {
 }
 
 testOpenAIConnection();
+
+// 错误处理中间件
+app.use((err, req, res, next) => {
+  console.error('服务器错误:', err);
+  res.status(500).json({ error: '服务器内部错误', details: err.message });
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`服务器运行在端口 ${PORT}`));

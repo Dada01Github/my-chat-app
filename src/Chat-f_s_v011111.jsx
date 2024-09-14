@@ -3,7 +3,6 @@ import axios from 'axios';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import './index.css';
 import { CopyToClipboard } from 'react-copy-to-clipboard';
-import imageCompression from 'browser-image-compression';
 
 const getFormattedTime = () => {
   const now = new Date();
@@ -330,118 +329,48 @@ const Chat = () => {
   const handleFileChange = useCallback(async (event) => {
     const file = event.target.files[0];
     if (file) {
+      console.log('选择的文件:', file.name, file.type, file.size, 'bytes');
       try {
-        if (file.type.startsWith('image/')) {
-          console.log('压缩前大小:', file.size / 1024 / 1024, 'MB');
-          const compressedFile = await compressImage(file);
-          console.log('压缩后大小:', compressedFile.size / 1024 / 1024, 'MB');
+        const formData = new FormData();
+        formData.append('file', file);
 
-          const imageUrl = URL.createObjectURL(compressedFile);
-          const newMessage = {
-            text: `图片文件: ${file.name}`,
-            type: 'user',
-            time: getFormattedTime(),
-            image: imageUrl
-          };
+        const apiUrl = useLocalApi ? 'http://localhost:3001/api/stt' : 'https://app.sea2rain.top/api/stt';
+        console.log('发送请求到:', apiUrl);
 
-          setMessages(prevMessages => [...prevMessages, newMessage]);
-
-          // 图片分析逻辑
-          const formData = new FormData();
-          formData.append('image', compressedFile, file.name);
-
-          console.log('FormData 内容:');
-          for (let [key, value] of formData.entries()) {
-            console.log(key, value);
+        const response = await axios.post(apiUrl, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            console.log('上传进度:', percentCompleted, '%');
           }
+        });
 
-          const imageApiUrl = useLocalApi ? 'http://localhost:3001/api/analyze-image' : 'https://app.sea2rain.top/api/analyze-image';
-          console.log('发送请求到:', imageApiUrl);
-          const response = await axios.post(imageApiUrl, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
-          });
+        console.log('服务器响应:', response.data);
 
-          console.log('服务器响应:', response.data);
-
-          const analysisResult = response.data.result;
-
-          setMessages(prevMessages => [
-            ...prevMessages,
-            {
-              text: `图片分析结果 (${file.name})：\n${analysisResult}`,
-              type: 'bot',
-              time: getFormattedTime(),
-              isImageAnalysis: true
-            }
-          ]);
-        } else if (file.type.startsWith('audio/') || file.type.startsWith('video/')) {
-          // 处理音频和视频文件
-          const audioUrl = URL.createObjectURL(file);
-          const newMessage = {
-            text: `音频文件: ${file.name}`,
+        setMessages(prevMessages => [
+          ...prevMessages,
+          {
+            text: `文件上传成功: ${response.data.filename} (${response.data.size} bytes)`,
             type: 'user',
-            time: getFormattedTime(),
-            audio: audioUrl,
-            audioFileName: file.name
-          };
+            time: getFormattedTime()
+          },
+          {
+            text: response.data.transcription || '无法获取转录结果',
+            type: 'bot',
+            time: getFormattedTime()
+          }
+        ]);
 
-          // 处理音频文件的逻辑...
-          const formData = new FormData();
-          formData.append('file', file);
-
-          const sttApiUrl = useLocalApi ? 'http://localhost:3001/api/stt' : 'https://app.sea2rain.top/api/stt';
-          const response = await axios.post(sttApiUrl, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
-          });
-
-          const transcription = response.data.text;
-          const isEnglishTranscription = /^[A-Za-z\s.,!?]+$/.test(transcription.trim());
-
-          const summaryResponse = await axios.post(useLocalApi ? 'http://localhost:3001/api/chat' : 'https://app.sea2rain.top/api/chat', {
-            message: `请对以下文本进行简要概括:\n${transcription}`,
-            conversationHistory: []
-          });
-
-          const summary = summaryResponse.data.message;
-
-          const formattedMessage = isEnglishTranscription
-            ? `1. summary:\n${summary}\n\n2. Original audio text:\n${transcription}`
-            : `1. 概括：\n${summary}\n\n2. 音频原文：\n${transcription}`;
-
-          setMessages(prevMessages => [
-            ...prevMessages,
-            newMessage,
-            { 
-              text: formattedMessage, 
-              type: 'bot', 
-              time: getFormattedTime() 
-            }
-          ]);
-        } else {
-          // 处理其他类型文件
-          setMessages(prevMessages => [
-            ...prevMessages,
-            { 
-              text: `文件已上传: ${file.name} (${file.type})`, 
-              type: 'user', 
-              time: getFormattedTime() 
-            }
-          ]);
-        }
       } catch (error) {
         console.error('处理文件时出错:', error);
         let errorMessage = '处理文件时出错: ';
         if (error.response) {
           errorMessage += `服务器响应错误 (${error.response.status})`;
           console.error('错误响应数据:', error.response.data);
-          console.error('错误响应头:', error.response.headers);
         } else if (error.request) {
           errorMessage += '未收到服务器响应';
-          console.error('请求:', error.request);
         } else {
           errorMessage += error.message;
         }
@@ -455,18 +384,9 @@ const Chat = () => {
         ]);
       }
 
-      // 清除文件输入，以便可以再次选择同一文件
       event.target.value = '';
     }
-  }, [messages, useLocalApi]);
-
-  // 格式化文件大小的辅助函数
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024) return bytes + ' bytes';
-    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    else if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
-    else return (bytes / 1073741824).toFixed(1) + ' GB';
-  };
+  }, [useLocalApi]);
 
   const handleModelSelect = useCallback(() => {
     setShowModelSelector(true);
@@ -506,7 +426,7 @@ const Chat = () => {
             )}
             {msg.image && (
               <div className="image-message">
-                <img src={msg.image} alt="上传的图片" style={{maxWidth: '100%', maxHeight: '300px'}} />
+                <img src={msg.image} alt={msg.text} style={{maxWidth: '100%', maxHeight: '300px'}} />
               </div>
             )}
             <div className="timestamp">{msg.time}</div>
@@ -617,48 +537,6 @@ const ModelSelector = ({ onModelSelect, onClose, currentModel }) => {
       <button onClick={onClose}>关闭</button>
     </div>
   );
-};
-
-const compressImage = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const elem = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        const maxSize = 1024;
-
-        if (width > height && width > maxSize) {
-          height *= maxSize / width;
-          width = maxSize;
-        } else if (height > maxSize) {
-          width *= maxSize / height;
-          height = maxSize;
-        }
-
-        elem.width = width;
-        elem.height = height;
-        const ctx = elem.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        ctx.canvas.toBlob(
-          (blob) => {
-            resolve(new File([blob], file.name, {
-              type: 'image/jpeg',
-              lastModified: Date.now(),
-            }));
-          },
-          'image/jpeg',
-          0.7
-        );
-      };
-      img.onerror = (error) => reject(error);
-    };
-    reader.onerror = (error) => reject(error);
-  });
 };
 
 export default Chat;
